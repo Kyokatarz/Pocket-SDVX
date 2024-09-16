@@ -123,7 +123,7 @@ void setup() {
 
   bool UseJoystick = IsButtonAPressed && !IsButtonBPressed;
   bool UseKeyboard = IsButtonBPressed && !IsButtonAPressed;
-  bool UseLight = IsButtonCPressed;
+  bool UseLight = !IsButtonCPressed;
 
   if (UseJoystick) {
     updateEEPROM(EEPROM_CONTROL_ADDRESS, MODE_JOYSTICK);
