@@ -42,6 +42,16 @@ int currMode = EEPROM.read(0);
 #define FX_R_LED  21
 #define BT_ST_LED 16
 
+// Define modes
+#define MODE_JOYSTICK 1
+#define MODE_KEYBOARD 2
+#define MODE_LIGHT_ON 1
+#define MODE_LIGHT_OFF 0
+
+// Eeprom addresses
+#define EEPROM_CONTROL_ADDRESS 0
+#define EEPROM_LIGHT_ADDRESS 1
+
 // Number of cycles before HID falls back to reactive
 unsigned long reactiveTimeoutMax = 1000;
 unsigned long reactiveTimeoutCount = reactiveTimeoutMax;
@@ -64,6 +74,10 @@ float old_knob2 = 0;
  * @param lightDesc Bit representation of activated lights
  */
 void lights(uint16_t lightDesc) {
+  bool UseLightMode = EEPROM.read(EEPROM_LIGHT_ADDRESS) == MODE_LIGHT_ON;
+
+  if (!UseLightMode) return;
+
   for (int i = 0; i < buttonCount - 1; i++) {
     if ((lightDesc >> i) & 1) {
       digitalWrite(ledPins[i], HIGH);
@@ -79,6 +93,15 @@ void lights(uint16_t lightDesc) {
   }
 }
 
+void updateEEPROM(int address, int newValue) {
+  int readState = EEPROM.read(address);
+
+  if (readState == newValue) return;
+
+  EEPROM.update(address, newValue);
+  delay(200);
+}
+
 /**
  * Arduino Setup
  */
@@ -92,18 +115,28 @@ void setup() {
   // Startup mode
   int Button1State = digitalRead(BT_A); //Read Btn-A
   int Button2State = digitalRead(BT_B); //Read Btn-B
-  // Button 1 is held down: Joystick Mode
-  if (Button1State == LOW && Button2State == HIGH) {
-    if (currMode != 1) {
-      EEPROM.update(0, 1); 
-      delay(200);
-    }
-  } else if (Button2State == LOW && Button1State == HIGH) {
-    // Button 2 is held down: Keyboard Mode
-    if (currMode != 2) {
-      EEPROM.update(0, 2);
-      delay(200);
-    }
+  int Button3State = digitalRead(BT_C); //Read Btn-C
+
+  bool IsButtonAPressed = Button1State == LOW;
+  bool IsButtonBPressed = Button2State == LOW;
+  bool IsButtonCPressed = Button3State == LOW;
+
+  bool UseJoystick = IsButtonAPressed && !IsButtonBPressed;
+  bool UseKeyboard = IsButtonBPressed && !IsButtonAPressed;
+  bool UseLight = IsButtonCPressed;
+
+  if (UseJoystick) {
+    updateEEPROM(EEPROM_CONTROL_ADDRESS, MODE_JOYSTICK);
+  } else if (UseKeyboard) {
+    updateEEPROM(EEPROM_CONTROL_ADDRESS, MODE_KEYBOARD);
+  } else {
+    updateEEPROM(EEPROM_CONTROL_ADDRESS, MODE_JOYSTICK);
+  }
+
+  if (UseLight) {
+    updateEEPROM(EEPROM_LIGHT_ADDRESS, MODE_LIGHT_ON);
+  } else {
+    updateEEPROM(EEPROM_LIGHT_ADDRESS, MODE_LIGHT_OFF);
   }
 }
 
@@ -111,11 +144,10 @@ void setup() {
  * Arduino Loop
  */
 void loop() {
-  if (EEPROM.read(0) == 1) {
-    joy_mode();
-  } else if (EEPROM.read(0) == 2) {
-    keyboard_mode();
-  }
+  int CONTROL_MODE = EEPROM.read(EEPROM_CONTROL_ADDRESS);
+
+  if (CONTROL_MODE == MODE_JOYSTICK) joy_mode();
+  else if (CONTROL_MODE == MODE_KEYBOARD) keyboard_mode();
 }
 
 /**
